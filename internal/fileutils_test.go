@@ -50,23 +50,35 @@ func TestCountFiles(t *testing.T) {
 }
 
 func TestCompressImage(t *testing.T) {
-	src := filepath.Join(t.TempDir(), "test.jpg")
+	src := "testdata/sample_with_exif.jpg"
 	dest := filepath.Join(t.TempDir(), "compressed_test.jpg")
 
-	// Create a temporary JPG file
-	file, _ := os.Create(src)
-	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
-	jpeg.Encode(file, img, nil)
-	file.Close()
-
-	err := compressImage(src, dest, 50)
-	if err != nil {
+	// Compress the image
+	if err := compressImage(src, dest, 50); err != nil {
 		t.Fatalf("compressImage returned an error: %v", err)
 	}
 
-	// Check if destination file exists
-	if _, err := os.Stat(dest); os.IsNotExist(err) {
-		t.Errorf("Destination file %s was not created", dest)
+	// Read the destination file
+	destFile, err := os.Open(dest)
+	if err != nil {
+		t.Fatalf("Failed to open destination file: %v", err)
+	}
+	defer destFile.Close()
+
+	// Check if the destination file is a valid JPEG file
+	if _, err := jpeg.Decode(destFile); err != nil {
+		t.Fatalf("Failed to decode destination file: %v", err)
+	}
+
+	// Get EXIF date from the destination file
+	exifDate, err := GetExifDate(dest)
+	if err != nil {
+		t.Fatalf("Failed to get EXIF date from destination file: %v", err)
+	}
+
+	// Check if the EXIF date is the same as the original
+	if exifDate.Day() != 25 || exifDate.Month() != 12 || exifDate.Year() != 2022 {
+		t.Errorf("EXIF date does not match. Original: %v, Destination: %v", time.Date(2022, 12, 25, 10, 30, 0, 0, time.UTC), exifDate)
 	}
 }
 

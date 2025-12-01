@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -194,31 +195,25 @@ func copyFile(src, dest string) error {
 
 // compressImage compresses a JPG image to the specified quality level and moves it to the destination.
 func compressImage(src, dest string, quality int) error {
-	// Open the source image
-	srcFile, err := os.Open(src)
+	srcBytes, err := os.ReadFile(src)
 	if err != nil {
-		return fmt.Errorf("failed to open source file %s: %v", src, err)
+		return fmt.Errorf("failed to read source file %s: %v", src, err)
 	}
-	defer srcFile.Close()
 
-	// Decode the image
-	img, _, err := image.Decode(srcFile)
+	img, _, err := image.Decode(bytes.NewReader(srcBytes))
 	if err != nil {
 		return fmt.Errorf("failed to decode image %s: %v", src, err)
 	}
 
-	// Create the destination file
-	destFile, err := os.Create(dest)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file %s: %v", dest, err)
+	buf := new(bytes.Buffer)
+	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return fmt.Errorf("JPEG encode error: %v", err)
 	}
-	defer destFile.Close()
 
-	// Encode the image with the specified quality
-	options := &jpeg.Options{Quality: quality}
-	if err := jpeg.Encode(destFile, img, options); err != nil {
-		return fmt.Errorf("failed to encode image %s: %v", dest, err)
+	// Write to file
+	if err := writeJPEGWithEXIF(dest, extractEXIFBlock(srcBytes), buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to write JPEG with EXIF: %v", err)
 	}
-	fmt.Printf("Compressed file %s created from %s\n", dest, src)
+
 	return nil
 }
